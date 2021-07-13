@@ -33,11 +33,6 @@ export default class BlockManager extends Manager<Block> {
    */
   public latest: Block;
 
-  /**
-   * The next block
-   */
-  public pending: Block;
-
   #blockchain: Blockchain;
   #common: Common;
   #blockIndexes: LevelUp;
@@ -146,14 +141,14 @@ export default class BlockManager extends Manager<Block> {
     }
   };
 
-  getBlockByTag(tag: Tag) {
-    switch (tag) {
-      case "latest":
+  async getBlockByTag(tag: Tag) {
+    switch (Tag.normalize(tag as Tag)) {
+      case Tag.LATEST:
         return this.latest;
       case "pending":
         // TODO: build a real pending block!
-        return this.latest; // this.createBlock(this.latest.header);
-      case "earliest":
+        return await this.fetchPendingBlock(this.latest);
+      case Tag.EARLIEST:
         return this.earliest;
       default:
         // the key is probably a hex string, let nature takes its course.
@@ -161,11 +156,11 @@ export default class BlockManager extends Manager<Block> {
     }
   }
 
-  getEffectiveNumber(
-    tagOrBlockNumber: QUANTITY | Buffer | Tag = typeof Tag.latest
-  ): Quantity {
+  async getEffectiveNumber(
+    tagOrBlockNumber: QUANTITY | Buffer | Tag = Tag.LATEST
+  ): Promise<Quantity> {
     if (typeof tagOrBlockNumber === "string") {
-      const block = this.getBlockByTag(tagOrBlockNumber as Tag);
+      const block = await this.getBlockByTag(tagOrBlockNumber as Tag);
       if (block) {
         return block.header.number;
       }
@@ -222,7 +217,7 @@ export default class BlockManager extends Manager<Block> {
 
   async get(tagOrBlockNumber: QUANTITY | Buffer | Tag) {
     if (typeof tagOrBlockNumber === "string") {
-      const block = this.getBlockByTag(tagOrBlockNumber as Tag);
+      const block = await this.getBlockByTag(tagOrBlockNumber as Tag);
       if (block) return block;
     }
 
@@ -308,12 +303,16 @@ export default class BlockManager extends Manager<Block> {
       const stream = this.base.createValueStream();
       this.latest = await new Promise<Block>((resolve, reject) => {
         let latest: Block;
-        stream.on("data", (data: Buffer) => {
-          const block = new Block(data, this.#common);
-          if (!latest || block.header.number.toBigInt() > latest.header.number.toBigInt()) {
-            latest = block;
-          }
-        })
+        stream
+          .on("data", (data: Buffer) => {
+            const block = new Block(data, this.#common);
+            if (
+              !latest ||
+              block.header.number.toBigInt() > latest.header.number.toBigInt()
+            ) {
+              latest = block;
+            }
+          })
           .on("error", (err: Error) => {
             reject(err);
           })
@@ -323,8 +322,14 @@ export default class BlockManager extends Manager<Block> {
       });
       if (this.latest) {
         // update the LATEST_INDEX_KEY index so we don't have to do this next time
-        await this.#blockIndexes.put(LATEST_INDEX_KEY, this.latest.header.number.toBuffer()).catch(e => null)
+        await this.#blockIndexes
+          .put(LATEST_INDEX_KEY, this.latest.header.number.toBuffer())
+          .catch(e => null);
       }
     }
+  }
+
+  async fetchPendingBlock(previousBlock: Block) {
+    return await this.#blockchain.createPendingBlock(previousBlock);
   }
 }
