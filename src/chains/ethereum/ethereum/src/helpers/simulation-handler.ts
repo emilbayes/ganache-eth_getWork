@@ -146,7 +146,7 @@ export default class SimulationHandler {
     const stateTrie = blockchain.trie.copy(false);
     stateTrie.setContext(
       simulationBlock.header.stateRoot.toBuffer(),
-      caller.buf,
+      null,
       simulationBlock.header.number
     );
     this.#stateTrie = stateTrie;
