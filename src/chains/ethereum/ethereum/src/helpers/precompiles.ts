@@ -123,4 +123,5 @@ export const warmPrecompiles = (stateManager: DefaultStateManager) => {
     const account = makeAccount(i);
     stateManager.addWarmedAddress(account.buf);
   }
+  return accountCache;
 };
