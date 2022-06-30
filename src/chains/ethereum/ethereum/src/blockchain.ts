@@ -1017,76 +1017,25 @@ export default class Blockchain extends Emittery<BlockchainTypedEvents> {
 
   public async simulateTransaction(
     transaction: SimulationTransaction,
-    parentBlock: Block,
+    simulationBlock: Block,
     overrides: CallOverrides
   ) {
-    let result: EVMResult;
-
-    const data = transaction.data;
-    let gasLimit = transaction.gas.toBigInt();
-    // subtract out the transaction's base fee from the gas limit before
-    // simulating the tx, because `runCall` doesn't account for raw gas costs.
-    const hasToAddress = transaction.to != null;
-    let to: EthereumJsAddress = null;
-    if (hasToAddress) {
-      const toBuf = transaction.to.toBuffer();
-      to = {
-        equals: (a: { buf: Buffer }) => toBuf.equals(a.buf),
-        buf: toBuf
-      } as any;
-    } else {
-      to = null;
-    }
-
     const common = this.fallback
       ? this.fallback.getCommonForBlockNumber(
           this.common,
           BigInt(transaction.block.header.number.toString())
         )
       : this.common;
-
-    const gasLeft =
-      gasLimit - calculateIntrinsicGas(data, hasToAddress, common);
-
-    const transactionContext = {};
-    this.emit("ganache:vm:tx:before", {
-      context: transactionContext
-    });
-
-    if (gasLeft >= 0n) {
-      const stateTrie = this.trie.copy(false);
-      stateTrie.setContext(
-        parentBlock.header.stateRoot.toBuffer(),
-        null,
-        parentBlock.header.number
-      );
-
-      const vm = await this.createVmFromStateTrie(
-        stateTrie,
-        this.#options.chain.allowUnlimitedContractSize,
-        false, // precompiles have already been initialized in the stateTrie
-        common
-      );
-
-      // take a checkpoint so the `runCall` never writes to the trie. We don't
-      // commit/revert later because this stateTrie is ephemeral anyway.
-      vm.stateManager.checkpoint();
-
-      vm.on("step", (event: InterpreterStep) => {
-        if (!this.#emitStepEvent) return;
-        const ganacheStepEvent = makeStepEvent(transactionContext, event);
-        this.emit("ganache:vm:tx:step", ganacheStepEvent);
-      });
-
-      const caller = transaction.from.toBuffer();
-
-      if (common.isActivatedEIP(2929)) {
-        const stateManager = vm.stateManager as DefaultStateManager;
-        // handle Berlin hardfork warm storage reads
-        warmPrecompiles(stateManager);
-        stateManager.addWarmedAddress(caller);
-        if (to) stateManager.addWarmedAddress(to.buf);
-      }
+    const simHandler = new SimulationHandler(
+      this,
+      common,
+      true,
+      this.#emitStepEvent
+    );
+    await simHandler.initialize(simulationBlock, transaction, overrides);
+    const callResult = await simHandler.runCall();
+    return Data.from(callResult.execResult.returnValue || "0x");
+  }
 
       // If there are any overrides requested for eth_call, apply
       // them now before running the simulation.
