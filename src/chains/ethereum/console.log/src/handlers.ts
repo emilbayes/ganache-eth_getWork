@@ -32,8 +32,8 @@ const OR_WITH_TWOS_COMPLEMENT =
  * @returns The starting position of the value in `memory`, and the `end` position of the value.
  */
 function getDynamicDataMarkers(memory: Buffer, offset: number) {
-  // A Buffer's length maxes out at UInt32 max, 4294967295, (2**(8 * 4)) - 1) it
-  // is safe to decode the `start` and `length` values as UInt32s.
+  // A Buffer's length maxes out at UInt32 max, 4294967295, (2**(8 * 4)) - 1) so
+  // it is safe to decode the `start` and `length` values as UInt32s.
   //
   // If we had a start position "word" of:
   //   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 60
