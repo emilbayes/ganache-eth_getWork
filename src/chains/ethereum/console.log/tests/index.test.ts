@@ -317,7 +317,7 @@ describe("@ganache/console.log", () => {
       return [`bytes${n}`, ["0x" + "00".padEnd(n * 2, "0")]];
     }
 
-    // `staticValues` genenerates 1000s of tests, adding a single additional
+    // `staticValues` generates 1000s of tests, adding a single additional
     // value increases test counts factorially
     const staticValues = new Map([
       ["string memory", ["", "This string takes up more than 32 bytes"]],
@@ -373,7 +373,7 @@ describe("@ganache/console.log", () => {
     for (const { params, name } of getSignatures()) {
       // don't test signatures with int and uint because our `console.sol`
       // doesn't use them as these types are only for hardhat's console.sol
-      // compatability.
+      // compatibility.
       if (params.includes("int") || params.includes("uint")) continue;
 
       const functionName = `testLog${counter++}`;
